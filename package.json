@@ -1,6 +1,6 @@
 {
   "name": "port-inspector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Interactive cross-platform CLI to inspect open/listening ports, the processes behind them, and which Node.js project each one belongs to.",
   "type": "module",
   "bin": {
