@@ -1,0 +1,53 @@
+{
+  "name": "port-inspector",
+  "version": "1.0.0",
+  "description": "Interactive cross-platform CLI to inspect open/listening ports, the processes behind them, and which Node.js project each one belongs to.",
+  "type": "module",
+  "bin": {
+    "ports": "./bin/ports.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node bin/ports.mjs",
+    "once": "node bin/ports.mjs --once"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "keywords": [
+    "ports",
+    "netstat",
+    "lsof",
+    "process",
+    "monitor",
+    "node",
+    "cli",
+    "tui",
+    "interactive",
+    "devtools"
+  ],
+  "author": "Mert <mert@talyasmart.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<kullanici-adin>/port-inspector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/<kullanici-adin>/port-inspector/issues"
+  },
+  "homepage": "https://github.com/<kullanici-adin>/port-inspector#readme",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5"
+  }
+}
