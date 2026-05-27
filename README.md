@@ -45,7 +45,7 @@ npx port-inspector            # once published to npm
 ### From source (any machine)
 
 ```bash
-git clone https://github.com/<your-name>/port-inspector.git
+git clone https://github.com/mertokan/port-inspector.git
 cd port-inspector
 npm install
 npm link                      # makes the global `ports` command available
@@ -113,7 +113,7 @@ If you didn't run `npm link`, use `node bin/ports.mjs …` instead of `ports …
 
 ### Kurulum (her makinede)
 ```bash
-git clone https://github.com/<kullanici-adin>/port-inspector.git
+git clone https://github.com/mertokan/port-inspector.git
 cd port-inspector
 npm install
 npm link        # global `ports` komutu

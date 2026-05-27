@@ -36,16 +36,16 @@
     "interactive",
     "devtools"
   ],
-  "author": "Mert <mert@talyasmart.com>",
+  "author": "Mert Okan <mert@talyasmart.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/<kullanici-adin>/port-inspector.git"
+    "url": "https://github.com/mertokan/port-inspector.git"
   },
   "bugs": {
-    "url": "https://github.com/<kullanici-adin>/port-inspector/issues"
+    "url": "https://github.com/mertokan/port-inspector/issues"
   },
-  "homepage": "https://github.com/<kullanici-adin>/port-inspector#readme",
+  "homepage": "https://github.com/mertokan/port-inspector#readme",
   "dependencies": {
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5"
