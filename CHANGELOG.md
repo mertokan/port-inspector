@@ -5,6 +5,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenir.
 Biçim [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) temel alınır ve proje
 [Semantic Versioning](https://semver.org/lang/tr/) kurallarını uygular.
 
+## [1.1.1] - 2026-06-01
+
+### Düzeltildi
+- **Windows'ta "klasörü aç" (`o`) çalışmıyordu:** `windowsHide` seçeneği Explorer'ı arka
+  planda başlatıp pencereyi bastırıyordu. Artık `windowsHide` olmadan detached `spawn` ile
+  açılıyor; Explorer'ın kod 1 ile çıkması (Windows'ta normaldir) hata sayılmıyor ve klasör
+  diskte yoksa net bir mesaj veriliyor.
+
 ## [1.1.0] - 2026-06-01
 
 ### Eklendi
@@ -51,6 +59,7 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) temel alınır v
 - Canlı otomatik yenileme ve script entegrasyonu için `--json` çıktısı.
 - Çapraz platform desteği: Windows (PowerShell), macOS & Linux (`lsof` / `/proc`).
 
+[1.1.1]: https://github.com/mertokan/port-inspector/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/mertokan/port-inspector/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/mertokan/port-inspector/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mertokan/port-inspector/releases/tag/v1.0.0
