@@ -11,8 +11,9 @@
 
 import os from 'node:os';
 import readline from 'node:readline';
+import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import chalk from 'chalk';
 
@@ -287,12 +288,16 @@ export async function runInteractive(initialOpts, intervalSec) {
 
   async function openFolder() {
     const dir = targetDir(state.rows[state.selected]);
-    if (!dir) return void setError('Açılacak klasör bulunamadı.');
+    if (!dir) return void setError('Açılacak klasör yok (proje/çalıştırılabilir yolu bulunamadı).');
+    if (!existsSync(dir)) return void setError('Klasör diskte bulunamadı: ' + dir);
     try {
       const plat = os.platform();
       if (plat === 'win32') {
-        // explorer başarıda bile 1 döndürebilir; hatayı yok say.
-        execFile('explorer', [dir], { windowsHide: true });
+        // explorer kod 1 ile çıkar (Windows'ta normal) ve windowsHide pencereyi bastırır;
+        // bu yüzden detached spawn + unref ile başlat, çıkış kodunu bekleme.
+        const child = spawn('explorer.exe', [dir], { detached: true, stdio: 'ignore' });
+        child.on('error', (e) => setError('Klasör açılamadı: ' + (e.message || '')));
+        child.unref();
       } else {
         await execFileP(plat === 'darwin' ? 'open' : 'xdg-open', [dir]);
       }
