@@ -5,26 +5,75 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, basename, join, parse as parsePath } from 'node:path';
 
 // Bilinen geliştirme araçları: komut satırında bunları görürsek etiketleriz.
+// Sıra önemlidir — ilk eşleşen kazanır, bu yüzden özel olanlar önce gelir.
 const DEV_TOOLS = [
-  ['vite', 'Vite'],
-  ['next', 'Next.js'],
+  // Framework / meta-framework dev sunucuları
   ['react-scripts', 'CRA (react-scripts)'],
+  ['next', 'Next.js'],
   ['nuxt', 'Nuxt'],
+  ['vite', 'Vite'],
   ['@nestjs', 'NestJS'],
-  ['nest', 'NestJS'],
-  ['nodemon', 'nodemon'],
-  ['ts-node', 'ts-node'],
-  ['tsx', 'tsx'],
-  ['webpack', 'webpack'],
+  ['nest start', 'NestJS'],
   ['ng serve', 'Angular CLI'],
   ['@angular', 'Angular CLI'],
+  ['@sveltejs/kit', 'SvelteKit'],
+  ['sveltekit', 'SvelteKit'],
   ['astro', 'Astro'],
   ['remix', 'Remix'],
+  ['gatsby', 'Gatsby'],
+  ['quasar', 'Quasar'],
+  ['@ionic', 'Ionic'],
+  // Mobil / masaüstü
+  ['expo', 'Expo'],
+  ['react-native', 'React Native (Metro)'],
+  ['metro', 'Metro'],
+  ['electron', 'Electron'],
+  // CMS / backend platformları
+  ['strapi', 'Strapi'],
+  ['@medusajs', 'Medusa'],
+  ['medusa', 'Medusa'],
+  ['payload', 'Payload'],
+  ['supabase', 'Supabase'],
+  // Web3
+  ['hardhat', 'Hardhat'],
+  ['truffle', 'Truffle'],
+  ['ganache', 'Ganache'],
+  // ORM / veritabanı / araç
+  ['prisma', 'Prisma'],
+  ['drizzle-kit', 'Drizzle'],
+  ['drizzle', 'Drizzle'],
+  ['tailwindcss', 'Tailwind'],
+  ['storybook', 'Storybook'],
+  // HTTP sunucu kütüphaneleri / GraphQL
+  ['fastify', 'Fastify'],
+  ['@hono', 'Hono'],
+  ['koa', 'Koa'],
+  ['apollo', 'Apollo'],
+  ['graphql', 'GraphQL'],
+  // Statik / basit sunucular
+  ['json-server', 'json-server'],
+  ['http-server', 'http-server'],
+  ['live-server', 'live-server'],
+  ['browser-sync', 'BrowserSync'],
+  ['serve', 'serve'],
+  // Paketleyici / bundler
+  ['parcel', 'Parcel'],
+  ['esbuild', 'esbuild'],
+  ['rollup', 'Rollup'],
+  ['turbo', 'Turborepo'],
+  ['webpack-dev-server', 'webpack-dev-server'],
+  ['webpack', 'webpack'],
+  // Çalıştırıcı / izleyici / süreç yöneticisi
+  ['nodemon', 'nodemon'],
+  ['ts-node-dev', 'ts-node-dev'],
+  ['ts-node', 'ts-node'],
+  ['tsx', 'tsx'],
+  ['pm2', 'PM2'],
+  // Test koşucuları
   ['vitest', 'Vitest'],
   ['jest', 'Jest'],
-  ['storybook', 'Storybook'],
-  ['expo', 'Expo'],
-  ['electron', 'Electron'],
+  ['playwright', 'Playwright'],
+  ['cypress', 'Cypress'],
 ];
 
 const RUNTIMES = ['node', 'bun', 'deno'];
@@ -59,8 +108,34 @@ function isDirSafe(p) {
   }
 }
 
+// Bir dizinde package.json olup olmadığını (ve proje adını) okur — sonucu önbelleğe alır.
+// İnteraktif mod saniyede bir yenilediğinden, aynı dizin ağaçlarını tekrar tekrar
+// fs ile yürümek pahalıdır; oturum boyunca projeler nadiren değiştiği için cache güvenli.
+const pkgDirCache = new Map(); // dir -> { dir, name } | null (null = burada package.json yok)
+
+function readPkgAt(dir) {
+  if (pkgDirCache.has(dir)) return pkgDirCache.get(dir);
+  let result = null;
+  const pkgPath = join(dir, 'package.json');
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+      result = { dir, name: pkg.name || basename(dir) };
+    } catch {
+      result = { dir, name: basename(dir) };
+    }
+  }
+  pkgDirCache.set(dir, result);
+  return result;
+}
+
+// Testler için: proje önbelleğini temizler.
+export function _clearProjectCache() {
+  pkgDirCache.clear();
+}
+
 // Bir yoldan yukarı yürüyerek node_modules dışındaki gerçek proje kökünü bulur.
-function findProject(startPath) {
+export function findProject(startPath) {
   if (!startPath) return null;
   let dir = isDirSafe(startPath) ? startPath : dirname(startPath);
   const root = parsePath(dir).root;
@@ -69,15 +144,8 @@ function findProject(startPath) {
       dir = dirname(dir);
       continue;
     }
-    const pkgPath = join(dir, 'package.json');
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        return { dir, name: pkg.name || basename(dir) };
-      } catch {
-        return { dir, name: basename(dir) };
-      }
-    }
+    const found = readPkgAt(dir);
+    if (found) return found;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -110,7 +178,7 @@ const BROWSERS = ['chrome', 'msedge', 'firefox', 'brave', 'opera', 'safari', 'fi
  * Bir süreci sınıflandırır: { type, label, project }
  * type: 'node' | 'system' | 'browser' | 'other' | 'unknown'
  */
-function classify(proc) {
+export function classify(proc) {
   if (!proc) return { type: 'unknown', label: '? (süreç bilgisi yok)', project: null };
 
   const rawName = (proc.Name || 'bilinmiyor').replace(/\.exe$/i, '');

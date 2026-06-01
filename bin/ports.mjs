@@ -83,7 +83,10 @@ ${chalk.bold('Filtreler:')}
 ${chalk.bold('İnteraktif kısayollar:')}
   ↑/↓ veya j/k  satır seç      Enter/d  detay        x veya Del  süreci sonlandır
   /             ara            a        tümü aç/kapat  n           sadece Node
-  r             yenile         q        çık
+  s             sırala         o        klasörü aç    e           editörde aç
+  c             komutu kopyala r        yenile        q           çık
+
+  Sonlandırma:  x sonra [e] nazik (TERM, yanıt yoksa KILL) · [f] zorla (KILL) · [h] iptal
 
 ${chalk.bold('Örnekler:')}
   ports                 İnteraktif panel

@@ -11,6 +11,7 @@
 
 import os from 'node:os';
 import readline from 'node:readline';
+import { dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import chalk from 'chalk';
@@ -32,12 +33,16 @@ const TYPE_COLOR = {
 // Sabit sütun genişlikleri (PATH dışında); PATH kalan genişliği alır.
 const COL = { sel: 2, port: 6, proto: 5, state: 11, pid: 7, label: 22, project: 18 };
 
+// Nazik kapatmadan sonra zorla sonlandırmaya geçmeden önce beklenecek süre.
+const GRACE_MS = 4000;
+
 export async function runInteractive(initialOpts, intervalSec) {
   const state = {
     all: initialOpts.all,
     nodeOnly: initialOpts.nodeOnly,
     port: initialOpts.port,
     search: '',
+    sort: 'port', // 'port' | 'pid' | 'project' | 'label' | 'proto'
     rows: [],
     selected: 0,
     offset: 0,
@@ -71,7 +76,7 @@ export async function runInteractive(initialOpts, intervalSec) {
         const q = state.search.toLowerCase();
         rows = rows.filter((r) => searchText(r).includes(q));
       }
-      state.rows = rows;
+      state.rows = sortRows(rows, state.sort);
       if (prevKey) {
         const idx = rows.findIndex((r) => keyOf(r) === prevKey);
         if (idx >= 0) state.selected = idx;
@@ -93,8 +98,8 @@ export async function runInteractive(initialOpts, intervalSec) {
 
   function viewportSize() {
     const termRows = process.stdout.rows || 30;
-    // Satır başına 1 satır. Pay: bilgi+başlık+ayraç+sayaç+boş+yardım+durum + 1 güvenlik.
-    return Math.max(3, termRows - 8);
+    // Satır başına 1 satır. Pay: bilgi+başlık+ayraç+sayaç+boş+yardım(2)+durum + 1 güvenlik.
+    return Math.max(3, termRows - 9);
   }
 
   function draw() {
@@ -114,6 +119,7 @@ export async function runInteractive(initialOpts, intervalSec) {
       state.nodeOnly ? chalk.green('node') : null,
       state.port != null ? `:${state.port}` : null,
       state.search ? chalk.magenta(`/${state.search}`) : null,
+      state.sort !== 'port' ? chalk.dim(`⇅${state.sort}`) : null,
     ]
       .filter(Boolean)
       .join(' ');
@@ -234,29 +240,120 @@ export async function runInteractive(initialOpts, intervalSec) {
     }
     if (state.mode === 'confirmKill') {
       const r = state.rows[state.selected];
-      return ['', chalk.red.bold(`PID ${r.pid} (${r.info.label}) sonlandırılsın mı?`) + chalk.dim('   [e] evet · [h] hayır')];
+      return [
+        '',
+        chalk.red.bold(`PID ${r.pid} (${r.info.label}) sonlandırılsın mı?`) +
+          chalk.dim('   [e] nazik (TERM→KILL) · [f] zorla · [h] iptal'),
+      ];
     }
-    const help = chalk.dim('↑/↓ seç · Enter/d detay · x kill · / ara · a tümü · n node · r yenile · q çık');
+    const help1 = chalk.dim('↑/↓ seç · Enter/d detay · / ara · a tümü · n node · s sırala · r yenile · q çık');
+    const help2 = chalk.dim('x kill · o klasörü aç · e editörde aç · c komutu kopyala');
     const status = state.lastError ? chalk.red('⚠ ' + state.lastError) : state.status ? chalk.green('✓ ' + state.status) : '';
-    return ['', help, status];
+    return ['', help1, help2, status];
   }
 
-  async function killSelected() {
+  // force=false: nazik kapatma (TERM). force=true: zorla (KILL).
+  async function killSelected(force) {
     const r = state.rows[state.selected];
     if (!r || r.pid == null) return;
+    const pid = r.pid;
+    state.mode = 'list';
     try {
-      if (os.platform() === 'win32') {
-        await execFileP('taskkill', ['/PID', String(r.pid), '/F'], { windowsHide: true });
-      } else {
-        process.kill(r.pid, 'SIGKILL');
-      }
-      state.status = `PID ${r.pid} sonlandırıldı.`;
+      await killProcess(pid, force);
+      state.status = force
+        ? `PID ${pid} zorla sonlandırıldı.`
+        : `PID ${pid} kapatma sinyali gönderildi (TERM).`;
     } catch (err) {
       const msg = (err.stderr || err.message || '').toString().trim();
-      state.lastError = `Sonlandırılamadı (PID ${r.pid}): ${msg}`;
+      state.lastError = `Sonlandırılamadı (PID ${pid}): ${msg}`;
     }
-    state.mode = 'list';
     await refresh();
+    // Nazik kapatmada süreç yanıt vermezse bir süre sonra zorla sonlandır.
+    if (!force) scheduleEscalation(pid);
+  }
+
+  function scheduleEscalation(pid) {
+    setTimeout(async () => {
+      if (!isAlive(pid)) return; // nazikçe kapanmış, dokunma.
+      try {
+        await killProcess(pid, true);
+        state.status = `PID ${pid} yanıt vermedi, zorla sonlandırıldı.`;
+      } catch {
+        /* zaten kapanmış olabilir */
+      }
+      refresh();
+    }, GRACE_MS);
+  }
+
+  async function openFolder() {
+    const dir = targetDir(state.rows[state.selected]);
+    if (!dir) return void setError('Açılacak klasör bulunamadı.');
+    try {
+      const plat = os.platform();
+      if (plat === 'win32') {
+        // explorer başarıda bile 1 döndürebilir; hatayı yok say.
+        execFile('explorer', [dir], { windowsHide: true });
+      } else {
+        await execFileP(plat === 'darwin' ? 'open' : 'xdg-open', [dir]);
+      }
+      setStatus(`Klasör açıldı: ${dir}`);
+    } catch (err) {
+      setError('Klasör açılamadı: ' + (err.message || ''));
+    }
+  }
+
+  async function openEditor() {
+    const dir = targetDir(state.rows[state.selected]);
+    if (!dir) return void setError('Açılacak klasör bulunamadı.');
+    const win = os.platform() === 'win32';
+    const candidates = [
+      ['code', [dir]],
+      ...(process.env.VISUAL ? [[process.env.VISUAL, [dir]]] : []),
+      ...(process.env.EDITOR ? [[process.env.EDITOR, [dir]]] : []),
+    ];
+    for (const [cmd, args] of candidates) {
+      try {
+        await execFileP(cmd, args, { windowsHide: true, shell: win });
+        return void setStatus(`Editörde açıldı: ${dir}`);
+      } catch {
+        /* sıradakini dene */
+      }
+    }
+    setError('Editör bulunamadı (code / $EDITOR ayarlı değil).');
+  }
+
+  async function copyCommand() {
+    const r = state.rows[state.selected];
+    const text = r?.proc?.CommandLine || r?.proc?.ExecutablePath || '';
+    if (!text) return void setError('Kopyalanacak komut yok.');
+    try {
+      await copyToClipboard(text);
+      setStatus('Komut satırı panoya kopyalandı.');
+    } catch (err) {
+      setError('Panoya kopyalanamadı: ' + (err.message || ''));
+    }
+  }
+
+  function setStatus(msg) {
+    state.status = msg;
+    state.lastError = '';
+    draw();
+  }
+  function setError(msg) {
+    state.lastError = msg;
+    state.status = '';
+    draw();
+  }
+  function cycleSort() {
+    const order = ['port', 'pid', 'project', 'label', 'proto'];
+    const selKey = state.rows[state.selected] ? keyOf(state.rows[state.selected]) : null;
+    state.sort = order[(order.indexOf(state.sort) + 1) % order.length];
+    state.rows = sortRows(state.rows, state.sort);
+    if (selKey) {
+      const idx = state.rows.findIndex((r) => keyOf(r) === selKey);
+      if (idx >= 0) state.selected = idx;
+    }
+    setStatus(`Sıralama: ${state.sort}`);
   }
 
   function onKey(str, key) {
@@ -271,7 +368,8 @@ export async function runInteractive(initialOpts, intervalSec) {
     }
 
     if (state.mode === 'confirmKill') {
-      if (key.name === 'e') return void killSelected();
+      if (key.name === 'e') return void killSelected(false);
+      if (key.name === 'f') return void killSelected(true);
       if (key.name === 'h' || key.name === 'escape') { state.mode = 'list'; draw(); }
       return;
     }
@@ -292,6 +390,10 @@ export async function runInteractive(initialOpts, intervalSec) {
     }
     if (key.name === 'a') { state.all = !state.all; refresh(); return; }
     if (key.name === 'n') { state.nodeOnly = !state.nodeOnly; refresh(); return; }
+    if (str === 's') return void cycleSort();
+    if (str === 'o') return void openFolder();
+    if (str === 'e') return void openEditor();
+    if (str === 'c') return void copyCommand();
     if (key.name === 'r') return void refresh();
   }
 
@@ -317,6 +419,74 @@ export async function runInteractive(initialOpts, intervalSec) {
 }
 
 /* ----------------------------- yardımcılar ------------------------------ */
+
+// Bir süreci sonlandırır. force=false -> nazik (SIGTERM / taskkill), force=true -> zorla (SIGKILL / taskkill /F).
+async function killProcess(pid, force) {
+  if (os.platform() === 'win32') {
+    const args = ['/PID', String(pid), '/T']; // /T: alt süreçleri de dahil et
+    if (force) args.push('/F');
+    await execFileP('taskkill', args, { windowsHide: true });
+  } else {
+    process.kill(pid, force ? 'SIGKILL' : 'SIGTERM');
+  }
+}
+
+// Sürecin hâlâ yaşadığını çapraz platform kontrol eder (sinyal 0).
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM'; // var ama sinyal gönderme yetkisi yok
+  }
+}
+
+// Seçili satırın açılabilir hedef dizinini döndürür: proje kökü ya da çalıştırılabilirin klasörü.
+function targetDir(r) {
+  if (!r) return null;
+  if (r.info.project?.dir) return r.info.project.dir;
+  if (r.proc?.ExecutablePath) return dirname(r.proc.ExecutablePath);
+  return null;
+}
+
+// Metni işletim sistemi panosuna kopyalar (stdin üzerinden besler).
+function copyToClipboard(text) {
+  const plat = os.platform();
+  const chain =
+    plat === 'win32'
+      ? [['clip', []]]
+      : plat === 'darwin'
+        ? [['pbcopy', []]]
+        : [
+            ['xclip', ['-selection', 'clipboard']],
+            ['wl-copy', []],
+          ];
+  const tryCmd = ([cmd, args]) =>
+    new Promise((resolve, reject) => {
+      const child = execFile(cmd, args, { windowsHide: true }, (err) => (err ? reject(err) : resolve()));
+      child.stdin.on('error', reject);
+      child.stdin.end(text);
+    });
+  // Linux'ta xclip yoksa wl-copy'yi dene.
+  return chain.reduce(
+    (p, entry) => p.catch(() => tryCmd(entry)),
+    Promise.reject(new Error('init'))
+  );
+}
+
+// Satırları seçili anahtara göre sıralar (kararlı kopya döndürür).
+function sortRows(rows, key) {
+  const proj = (r) => (r.info.project?.name || (r.info.type === 'node' ? '~' : '')).toLowerCase();
+  const byPort = (a, b) => a.localPort - b.localPort || a.proto.localeCompare(b.proto);
+  const cmp = {
+    port: byPort,
+    pid: (a, b) => (a.pid ?? 0) - (b.pid ?? 0) || byPort(a, b),
+    project: (a, b) => proj(a).localeCompare(proj(b)) || byPort(a, b),
+    label: (a, b) => a.info.label.localeCompare(b.info.label) || byPort(a, b),
+    proto: (a, b) => a.proto.localeCompare(b.proto) || byPort(a, b),
+  }[key];
+  return [...rows].sort(cmp || byPort);
+}
 
 // Metni tam olarak `width` görünür karaktere getirir: uzunsa '…' ile kırpar, kısaysa boşlukla doldurur.
 function fit(s, width) {

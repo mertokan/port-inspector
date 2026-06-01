@@ -12,8 +12,10 @@ Find out what is running on which port, jump straight to the owning process and 
 
 - 🔎 Lists all listening (and optionally established) **TCP/UDP** ports with the owning **PID**, executable and command line.
 - 🟢 Detects **Node / Bun / Deno** processes and resolves the **real project** (`package.json` name + directory), skipping `node_modules`.
-- 🛠 Labels common dev servers: **Vite, Next.js, NestJS, Nuxt, Angular, Astro, Remix, Expo, Electron, nodemon, tsx, Vitest, Jest…**
-- ⌨️ **Interactive TUI**: navigate, view details, live search, and **kill** a process by its port.
+- 🛠 Labels 40+ common dev servers/tools: **Vite, Next.js, NestJS, Nuxt, Angular, SvelteKit, Astro, Remix, Gatsby, Expo, Electron, Hardhat, Prisma, Drizzle, Strapi, Supabase, Fastify, Apollo, Storybook, Vitest, Jest, nodemon, tsx…**
+- ⌨️ **Interactive TUI**: navigate, view details, live search, sort, and act on a process by its port.
+- 🛑 **Graceful kill**: `SIGTERM` first, auto-escalate to `SIGKILL` if it doesn't exit — or force-kill on demand.
+- 🚀 **Quick actions**: open the project folder, open it in your editor, or copy the command line to the clipboard.
 - 🔁 Live auto-refresh.
 - 🤖 `--json` output for scripting.
 
@@ -87,12 +89,24 @@ If you didn't run `npm link`, use `node bin/ports.mjs …` instead of `ports …
 |---|---|
 | `↑`/`↓` or `j`/`k` | Move selection |
 | `Enter` / `d` | Toggle detail panel |
-| `x` / `Del` | Kill selected process (with confirmation) |
+| `x` / `Del` | Kill selected process → `e` graceful (TERM→KILL) · `f` force · `h` cancel |
 | `/` | Live search |
+| `s` | Cycle sort (port → pid → project → process → proto) |
+| `o` | Open the project folder |
+| `e` | Open the project in your editor (`code` / `$EDITOR`) |
+| `c` | Copy the command line to the clipboard |
 | `a` | Toggle all connections |
 | `n` | Toggle Node-only |
 | `r` | Refresh now |
 | `q` | Quit |
+
+> **Clipboard on Linux** needs `xclip` or `wl-copy`; **open folder** needs `xdg-open`.
+
+## Development
+
+```bash
+npm test     # run the unit tests (node:test, no extra deps)
+```
 
 ## License
 
@@ -107,8 +121,10 @@ If you didn't run `npm link`, use `node bin/ports.mjs …` instead of `ports …
 ### Öne çıkanlar
 - Tüm dinlenen (ve istenirse kurulu) **TCP/UDP** portları; **PID**, çalıştırılabilir ve komut satırı ile.
 - **Node / Bun / Deno** süreçlerini tanır, `node_modules`'ü atlayıp **gerçek projeyi** (`package.json` adı + dizini) bulur.
-- Bilinen dev sunucularını etiketler (Vite, Next.js, NestJS, Expo, Electron, nodemon…).
-- **İnteraktif arayüz**: ok tuşlarıyla gezin, detay gör, canlı ara ve süreci **sonlandır (kill)**.
+- 40+ bilinen dev sunucusunu/aracını etiketler (Vite, Next.js, NestJS, SvelteKit, Hardhat, Prisma, Strapi, Supabase, Fastify, Expo, Electron, nodemon…).
+- **İnteraktif arayüz**: ok tuşlarıyla gezin, detay gör, canlı ara, sırala ve süreç üzerinde eylem yap.
+- **Nazik kapatma**: önce `SIGTERM`, kapanmazsa otomatik `SIGKILL` — ya da istersen doğrudan zorla.
+- **Hızlı eylemler**: proje klasörünü aç, editörde aç, komut satırını panoya kopyala.
 - Canlı otomatik yenileme + script için `--json`.
 
 ### Kurulum (her makinede)
@@ -131,6 +147,13 @@ ports -n               # sadece Node projeleri
 ports --once -p 3000   # 3000 portunu kim tutuyor?
 ```
 
-Kısayollar: `↑/↓` seç · `Enter/d` detay · `x` kill · `/` ara · `a` tümü · `n` node · `r` yenile · `q` çık.
+Kısayollar: `↑/↓` seç · `Enter/d` detay · `x` kill (`e` nazik · `f` zorla) · `/` ara · `s` sırala · `o` klasör · `e` editör · `c` kopyala · `a` tümü · `n` node · `r` yenile · `q` çık.
+
+> Linux'ta panoya kopyalama `xclip`/`wl-copy`, klasör açma `xdg-open` gerektirir.
+
+### Geliştirme
+```bash
+npm test     # birim testleri (node:test, ek bağımlılık yok)
+```
 
 Lisans: [MIT](LICENSE) — dilediğin gibi kullan.
